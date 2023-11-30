@@ -1,0 +1,121 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <DHT.h>
+
+#define DHTPIN 4       // Pin for DHT sensor
+#define DHTTYPE DHT11   // Type of DHT sensor
+#define RELAY_PIN 5     // GPIO5 for relay control
+#define FAN_PIN 0       // GPIO0 for fan control (PWM)
+
+DHT dht(DHTPIN, DHTTYPE);
+
+const char* ssid = "KOS YOGA 2";
+const char* password = "Ry4nunyucekali";
+
+const char* SERVER_NAME = "http://192.168.1.10/nodemcudht11/sensordata.php";
+const String PROJECT_API_KEY = "isamahfudi";
+
+unsigned long lastMillis = 0;
+const long interval = 5000;
+
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+  pinMode(RELAY_PIN, OUTPUT); // Set the relay pin as an output
+  pinMode(FAN_PIN, OUTPUT);   // Set the fan pin as an output for PWM
+  connectToWiFi();
+}
+
+void loop() {
+  if (WiFi.status() == WL_CONNECTED) {
+    if (millis() - lastMillis > interval) {
+      uploadTemperature();
+      controlFan(); // Check temperature and control the fan speed
+      lastMillis = millis();
+    }
+  } else {
+    Serial.println("WiFi Disconnected. Reconnecting...");
+    connectToWiFi();
+  }
+
+  delay(1000);
+}
+
+void connectToWiFi() {
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("");
+    Serial.print("Connected to WiFi network with IP Address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("Unable to connect to WiFi. Please check your credentials.");
+  }
+}
+
+void uploadTemperature() {
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
+
+  if (!isnan(temperature) && !isnan(humidity)) {
+    String temperatureData = "api_key=" + PROJECT_API_KEY +
+                             "&temperature=" + String(temperature, 2) +
+                             "&humidity=" + String(humidity, 2);
+
+    Serial.println("Temperature: " + String(temperature, 2));
+    Serial.println("Humidity: " + String(humidity, 2));
+
+    WiFiClient client;
+    HTTPClient http;
+
+    http.begin(client, SERVER_NAME);
+    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+    
+    int httpResponseCode = http.POST(temperatureData);
+
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+
+    http.end();
+  } else {
+    Serial.println("Failed to read from DHT sensor!");
+  }
+}
+
+void controlFan() {
+  float temperature = dht.readTemperature();
+
+  if (!isnan(temperature)) {
+    if (temperature > 31.0) {
+      // Map the temperature range (adjust these values based on your needs)
+      int fanSpeed = map(temperature, 30, 40, 100, 255);
+
+      // Constrain the fan speed to be within valid PWM range
+      fanSpeed = constrain(fanSpeed, 100, 255);
+
+      analogWrite(FAN_PIN, fanSpeed);
+
+      Serial.print("Temperature: ");
+      Serial.print(temperature);
+      Serial.print("°C, Fan Speed: ");
+      Serial.println(fanSpeed);
+
+      // Turn on the relay (assuming a HIGH signal activates the relay)
+      digitalWrite(RELAY_PIN, HIGH);
+    } else {
+      // Turn off the relay and set fan speed to 0
+      digitalWrite(RELAY_PIN, LOW);
+      analogWrite(FAN_PIN, 0);
+    }
+  } else {
+    Serial.println("Failed to read from DHT sensor!");
+  }
+}
