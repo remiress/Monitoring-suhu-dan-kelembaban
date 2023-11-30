@@ -9,10 +9,10 @@
 
 DHT dht(DHTPIN, DHTTYPE);
 
-const char* ssid = "KOS YOGA 2";
-const char* password = "Ry4nunyucekali";
+const char* ssid = "SSID";
+const char* password = "SSID Password";
 
-const char* SERVER_NAME = "http://192.168.1.10/nodemcudht11/sensordata.php";
+const char* SERVER_NAME = "http://(ip address)/nodemcudht11/sensordata.php";
 const String PROJECT_API_KEY = "isamahfudi";
 
 unsigned long lastMillis = 0;
